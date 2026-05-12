@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,7 +22,7 @@
   <script type="text/babel">
     const { useState, useEffect, useCallback } = React;
 
-    // --- Safe Storage Wrapper (Prevents iframe/security errors) ---
+    // --- Safe Storage Wrapper ---
     const safeGetStorage = (key) => {
       try { return localStorage.getItem(key); } 
       catch (e) { return null; }
@@ -31,7 +32,7 @@
       catch (e) {}
     };
 
-    // --- Icons (Replacing lucide-react) ---
+    // --- Icons ---
     const Info = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
     const Delete = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>;
     const XIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
@@ -65,7 +66,6 @@
     };
 
     const generateDailyTarget = (dateStr) => {
-      // Modulo 9999 to get 0-9998, then +1 to get 1-9999
       const num = (hashString(dateStr + "factole-salt-v1") % 9999) + 1; 
       const numStr = num.toString().padStart(4, '0');
       const divs = countDivisors(num);
@@ -294,7 +294,7 @@
       };
 
       return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col items-center">
+        <div className="min-h-[100dvh] bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col items-center">
           <style>
             {`
               @keyframes shake {
@@ -308,7 +308,7 @@
             `}
           </style>
 
-          <header className="w-full flex items-center justify-between px-4 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-800 max-w-lg">
+          <header className="w-full flex items-center justify-between px-4 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-800 max-w-lg shrink-0">
             <button onClick={() => setShowInfo(true)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
               <Info />
             </button>
@@ -316,7 +316,7 @@
             <div className="w-10"></div> 
           </header>
 
-          <div className="relative w-full max-w-sm h-12 flex items-center justify-center pointer-events-none z-10 my-1">
+          <div className="relative w-full max-w-sm h-12 flex items-center justify-center pointer-events-none z-10 my-1 shrink-0">
             {toast && (
               <div className="absolute top-2 bg-slate-900 dark:bg-slate-100 text-slate-100 dark:text-slate-900 px-4 py-2 rounded font-bold shadow-lg animate-fade-in-down pointer-events-auto text-center text-sm w-max max-w-[90%]">
                 {toast}
@@ -324,8 +324,11 @@
             )}
           </div>
 
-          <main className="flex-1 flex flex-col justify-start items-center w-full px-4 pt-1 sm:pt-4">
-            <div className="w-full max-w-md">
+          {/* Grouped Game Area (Grid + Keyboard) */}
+          <div className="flex-1 w-full flex flex-col items-center justify-center gap-6 sm:gap-10 pb-8 px-2 max-w-lg">
+            
+            {/* Grid */}
+            <main className="w-full flex flex-col items-center">
               {guesses.map((guess, i) => (
                 <div key={i}>{renderRow('past', guess)}</div>
               ))}
@@ -333,32 +336,34 @@
               {Array.from({ length: 5 - guesses.length }).map((_, i) => (
                 <div key={`empty-${i}`}>{renderRow('empty')}</div>
               ))}
-            </div>
-          </main>
+            </main>
 
-          <div className="w-full max-w-sm px-2 pb-6 flex flex-col items-center gap-2 select-none">
-            <div className="flex gap-2 w-full justify-center">
-              {['1', '2', '3', '4', '5'].map((key) => (
-                <button key={key} onClick={() => handleKeyPress(key)} className={`flex-1 h-12 sm:h-14 font-bold text-xl rounded flex items-center justify-center transition-colors ${getKeyClass(key)}`}>
-                  {key}
+            {/* Keyboard */}
+            <div className="w-full max-w-sm flex flex-col items-center gap-2 select-none">
+              <div className="flex gap-2 w-full justify-center">
+                {['1', '2', '3', '4', '5'].map((key) => (
+                  <button key={key} onClick={() => handleKeyPress(key)} className={`flex-1 h-12 sm:h-14 font-bold text-xl rounded flex items-center justify-center transition-colors ${getKeyClass(key)}`}>
+                    {key}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 w-full justify-center">
+                {['6', '7', '8', '9', '0'].map((key) => (
+                  <button key={key} onClick={() => handleKeyPress(key)} className={`flex-1 h-12 sm:h-14 font-bold text-xl rounded flex items-center justify-center transition-colors ${getKeyClass(key)}`}>
+                    {key}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 w-full justify-center">
+                <button onClick={() => handleKeyPress('Enter')} className="flex-[2] h-12 sm:h-14 font-bold text-sm sm:text-base rounded flex items-center justify-center bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500 transition-colors">
+                  ENTER
                 </button>
-              ))}
-            </div>
-            <div className="flex gap-2 w-full justify-center">
-              {['6', '7', '8', '9', '0'].map((key) => (
-                <button key={key} onClick={() => handleKeyPress(key)} className={`flex-1 h-12 sm:h-14 font-bold text-xl rounded flex items-center justify-center transition-colors ${getKeyClass(key)}`}>
-                  {key}
+                <button onClick={() => handleKeyPress('Backspace')} className="flex-[2] h-12 sm:h-14 font-bold rounded flex items-center justify-center bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500 transition-colors">
+                  <Delete />
                 </button>
-              ))}
+              </div>
             </div>
-            <div className="flex gap-2 w-full justify-center">
-              <button onClick={() => handleKeyPress('Enter')} className="flex-[2] h-12 sm:h-14 font-bold text-sm sm:text-base rounded flex items-center justify-center bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500 transition-colors">
-                ENTER
-              </button>
-              <button onClick={() => handleKeyPress('Backspace')} className="flex-[2] h-12 sm:h-14 font-bold rounded flex items-center justify-center bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500 transition-colors">
-                <Delete />
-              </button>
-            </div>
+
           </div>
 
           {gameStatus !== 'playing' && (

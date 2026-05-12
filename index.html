@@ -35,7 +35,7 @@
     const Info = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
     const Delete = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>;
     const XIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
-    const StatsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>;
+    const ShareIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>;
 
     // --- Utility Functions ---
     const countDivisors = (n) => {
@@ -93,15 +93,388 @@
       return result;
     };
 
-    const getWinMessage = (tries) => {
-      const messages = [
-        "Genius! First try!", 
-        "Magnificent!", 
-        "Impressive!", 
-        "Splendid!", 
-        "Great!", 
-        "Phew! Close one!"
-      ];
+    // --- Main Component ---
+    function App() {
+      const todayStr = getTodayStr();
+      const [target] = useState(() => generateDailyTarget(todayStr));
+      
+      const [guesses, setGuesses] = useState(() => {
+        const saved = safeGetStorage('factole_daily_state');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.date === todayStr) return parsed.guesses || [];
+        }
+        return [];
+      });
+
+      const [gameStatus, setGameStatus] = useState(() => {
+        const saved = safeGetStorage('factole_daily_state');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.date === todayStr) return parsed.gameStatus || "playing";
+        }
+        return "playing";
+      });
+
+      const [currentGuess, setCurrentGuess] = useState("");
+      const [toast, setToast] = useState(null);
+      const [showInfo, setShowInfo] = useState(false);
+      const [isShaking, setIsShaking] = useState(false);
+
+      useEffect(() => {
+        safeSetStorage('factole_daily_state', JSON.stringify({
+          date: todayStr,
+          guesses,
+          gameStatus
+        }));
+      }, [guesses, gameStatus, todayStr]);
+
+      useEffect(() => {
+        const hasSeenInfo = safeGetStorage('factole_info_seen_v2');
+        if (!hasSeenInfo) {
+          setShowInfo(true);
+          safeSetStorage('factole_info_seen_v2', 'true');
+        }
+      }, []);
+
+      useEffect(() => {
+        if (toast) {
+          const timer = setTimeout(() => setToast(null), 3000);
+          return () => clearTimeout(timer);
+        }
+      }, [toast]);
+
+      const triggerShake = () => {
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 500);
+      };
+
+      const submitGuess = useCallback(() => {
+        if (currentGuess.length !== 6) {
+          setToast("Guess must be 6 digits");
+          triggerShake();
+          return;
+        }
+
+        const numPartStr = currentGuess.slice(0, 4);
+        const divPartStr = currentGuess.slice(4, 6);
+
+        const numPart = parseInt(numPartStr, 10);
+        const divPart = parseInt(divPartStr, 10);
+        
+        if (numPart === 0) {
+          setToast("Number must be between 0001 and 9999");
+          triggerShake();
+          return;
+        }
+
+        const actualDivs = countDivisors(numPart);
+
+        if (actualDivs !== divPart) {
+          setToast(`Invalid! ${numPartStr} has ${actualDivs} divisors, not ${divPartStr}.`);
+          triggerShake();
+          return;
+        }
+
+        const newGuesses = [...guesses, currentGuess];
+        setGuesses(newGuesses);
+        setCurrentGuess("");
+
+        if (currentGuess === target) {
+          setGameStatus("won");
+          setTimeout(() => setToast("Genius! You cracked the daily code!"), 100);
+        } else if (newGuesses.length >= 6) {
+          setGameStatus("lost");
+          setTimeout(() => setToast(`Game Over. Today's sequence was ${target}`), 100);
+        }
+      }, [currentGuess, guesses, target]);
+
+      const handleKeyPress = useCallback((key) => {
+        if (gameStatus !== "playing") return;
+        if (key === 'Enter') submitGuess();
+        else if (key === 'Backspace') setCurrentGuess((prev) => prev.slice(0, -1));
+        else if (/^[0-9]$/.test(key)) setCurrentGuess((prev) => (prev.length < 6 ? prev + key : prev));
+      }, [currentGuess, gameStatus, submitGuess]);
+
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.ctrlKey || e.altKey || e.metaKey) return;
+          if (e.key === 'Enter') handleKeyPress('Enter');
+          else if (e.key === 'Backspace') handleKeyPress('Backspace');
+          else if (/^[0-9]$/.test(e.key)) handleKeyPress(e.key);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [handleKeyPress]);
+
+      const handleShare = () => {
+        const attemptCount = gameStatus === 'won' ? guesses.length : 'X';
+        let shareText = `FACTOLE ${todayStr} ${attemptCount}/6\n\n`;
+        
+        guesses.forEach((guess) => {
+          const feedback = getFeedback(guess, target);
+          const rowStr = feedback.map(color => {
+            if (color === 'green') return '🟩';
+            if (color === 'yellow') return '🟨';
+            return '⬛';
+          }).join('');
+          shareText += rowStr + '\n';
+        });
+
+        // Try using navigator.share if available (mobile standard), otherwise clipboard fallback
+        if (navigator.share && /mobile|android|iphone|ipad/i.test(navigator.userAgent)) {
+          navigator.share({
+            title: 'FACTOLE',
+            text: shareText
+          }).catch((err) => {
+             // Silently catch aborts
+          });
+        } else if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(shareText).then(() => {
+            setToast("Result copied to clipboard!");
+          }).catch(() => {
+            setToast("Failed to copy result.");
+          });
+        } else {
+          // Fallback for older browsers
+          const textArea = document.createElement("textarea");
+          textArea.value = shareText;
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            setToast("Result copied to clipboard!");
+          } catch (err) {
+            setToast("Failed to copy result.");
+          }
+          document.body.removeChild(textArea);
+        }
+      };
+
+      const keyColors = (() => {
+        const colors = {};
+        guesses.forEach((guess) => {
+          const feedback = getFeedback(guess, target);
+          for (let i = 0; i < 6; i++) {
+            const char = guess[i];
+            const color = feedback[i];
+            if (colors[char] === 'green') continue;
+            if (colors[char] === 'yellow' && color === 'gray') continue;
+            colors[char] = color;
+          }
+        });
+        return colors;
+      })();
+
+      const getKeyClass = (key) => {
+        const color = keyColors[key];
+        if (color === 'green') return 'bg-green-600 text-white border-transparent';
+        if (color === 'yellow') return 'bg-yellow-500 text-white border-transparent';
+        if (color === 'gray') return 'bg-slate-700 text-white border-transparent opacity-50';
+        return 'bg-slate-200 text-slate-900 border-transparent hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500';
+      };
+
+      const renderCell = (cell, i) => {
+        let bgClass = 'bg-transparent border-slate-300 dark:border-slate-600';
+        let textClass = 'text-slate-900 dark:text-slate-100';
+
+        if (cell.type === 'green') {
+          bgClass = 'bg-green-600 border-green-600'; textClass = 'text-white';
+        } else if (cell.type === 'yellow') {
+          bgClass = 'bg-yellow-500 border-yellow-500'; textClass = 'text-white';
+        } else if (cell.type === 'gray') {
+          bgClass = 'bg-slate-500 border-slate-500 dark:bg-slate-700 dark:border-slate-700'; textClass = 'text-white';
+        } else if (cell.type === 'typed') {
+          bgClass = 'border-slate-500 dark:border-slate-400';
+        } else if (cell.type === 'hint') {
+          bgClass = 'bg-slate-100 border-slate-200 dark:bg-slate-800 dark:border-slate-700';
+          textClass = 'text-slate-400 dark:text-slate-500 italic opacity-80';
+        }
+
+        return (
+          <div key={i} className={`w-11 h-12 sm:w-14 sm:h-14 flex items-center justify-center border-2 font-bold text-2xl sm:text-3xl transition-colors duration-300 ${bgClass} ${textClass}`}>
+            {cell.char}
+          </div>
+        );
+      };
+
+      const renderRow = (rowType, guessStr = "") => {
+        let cells = Array(6).fill({ char: '', type: 'empty' });
+
+        if (rowType === 'past') {
+          const feedback = getFeedback(guessStr, target);
+          cells = guessStr.split('').map((char, i) => ({ char, type: feedback[i] }));
+        } else if (rowType === 'current') {
+          const chars = currentGuess.split('');
+          cells = cells.map((cell, i) => {
+            if (i < chars.length) return { char: chars[i], type: 'typed' };
+            return cell;
+          });
+
+          if (chars.length >= 4) {
+            const numPart = parseInt(currentGuess.slice(0, 4), 10);
+            if (numPart > 0) {
+              const divs = countDivisors(numPart).toString().padStart(2, '0');
+              if (chars.length === 4) {
+                cells[4] = { char: divs[0], type: 'hint' };
+                cells[5] = { char: divs[1], type: 'hint' };
+              } else if (chars.length === 5) {
+                cells[5] = { char: divs[1], type: 'hint' };
+              }
+            }
+          }
+        }
+
+        return (
+          <div className={`flex justify-center mb-1.5 w-full ${rowType === 'current' && isShaking ? 'animate-shake' : ''}`}>
+            <div className="flex gap-1.5 sm:gap-2 mr-3 sm:mr-5">
+              {cells.slice(0, 4).map((cell, i) => renderCell(cell, i))}
+            </div>
+            <div className="flex gap-1.5 sm:gap-2">
+              {cells.slice(4, 6).map((cell, i) => renderCell(cell, i + 4))}
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div className="min-h-[100dvh] bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col items-center">
+          <style>
+            {`
+              @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+                20%, 40%, 60%, 80% { transform: translateX(4px); }
+              }
+              .animate-shake {
+                animation: shake 0.5s;
+              }
+            `}
+          </style>
+
+          <header className="w-full flex items-center justify-between px-4 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-800 max-w-lg shrink-0">
+            <button onClick={() => setShowInfo(true)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <Info />
+            </button>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-widest text-center flex-1">FACTOLE</h1>
+            <div className="w-10"></div> 
+          </header>
+
+          <div className="relative w-full max-w-sm h-12 flex items-center justify-center pointer-events-none z-10 my-1 shrink-0">
+            {toast && (
+              <div className="absolute top-2 bg-slate-900 dark:bg-slate-100 text-slate-100 dark:text-slate-900 px-4 py-2 rounded font-bold shadow-lg animate-fade-in-down pointer-events-auto text-center text-sm w-max max-w-[90%]">
+                {toast}
+              </div>
+            )}
+          </div>
+
+          {/* Grouped Game Area (Grid + Keyboard) */}
+          <div className="flex-1 w-full flex flex-col items-center justify-center gap-6 sm:gap-10 pb-8 px-2 max-w-lg">
+            
+            {/* Grid */}
+            <main className="w-full flex flex-col items-center">
+              {guesses.map((guess, i) => (
+                <div key={i}>{renderRow('past', guess)}</div>
+              ))}
+              {guesses.length < 6 && renderRow('current')}
+              {Array.from({ length: 5 - guesses.length }).map((_, i) => (
+                <div key={`empty-${i}`}>{renderRow('empty')}</div>
+              ))}
+            </main>
+
+            {/* Keyboard */}
+            <div className="w-full max-w-sm flex flex-col items-center gap-2 select-none">
+              <div className="flex gap-2 w-full justify-center">
+                {['1', '2', '3', '4', '5'].map((key) => (
+                  <button key={key} onClick={() => handleKeyPress(key)} className={`flex-1 h-12 sm:h-14 font-bold text-xl rounded flex items-center justify-center transition-colors ${getKeyClass(key)}`}>
+                    {key}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 w-full justify-center">
+                {['6', '7', '8', '9', '0'].map((key) => (
+                  <button key={key} onClick={() => handleKeyPress(key)} className={`flex-1 h-12 sm:h-14 font-bold text-xl rounded flex items-center justify-center transition-colors ${getKeyClass(key)}`}>
+                    {key}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 w-full justify-center">
+                <button onClick={() => handleKeyPress('Enter')} className="flex-[2] h-12 sm:h-14 font-bold text-sm sm:text-base rounded flex items-center justify-center bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500 transition-colors">
+                  ENTER
+                </button>
+                <button onClick={() => handleKeyPress('Backspace')} className="flex-[2] h-12 sm:h-14 font-bold rounded flex items-center justify-center bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500 transition-colors">
+                  <Delete />
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {gameStatus !== 'playing' && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-2xl max-w-sm w-full text-center relative">
+                <h2 className="text-3xl font-bold mb-4">{gameStatus === 'won' ? 'Genius!' : 'Game Over'}</h2>
+                <p className="text-lg mb-2">Today's sequence was:</p>
+                <div className="text-4xl font-mono tracking-widest font-bold text-indigo-600 dark:text-indigo-400 mb-6 flex justify-center gap-4">
+                  <span>{target.slice(0,4)}</span>
+                  <span>{target.slice(4,6)}</span>
+                </div>
+                
+                <button 
+                  onClick={handleShare}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition-colors mb-6 shadow-lg"
+                >
+                  <span>Share Result</span>
+                  <ShareIcon />
+                </button>
+
+                <div className="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg">
+                    <p className="font-bold text-lg">Next FACTOLE tomorrow!</p>
+                    <p className="text-sm mt-1 opacity-80">Your progress is automatically saved.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showInfo && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl max-w-md w-full relative">
+                <button onClick={() => setShowInfo(false)} className="absolute right-4 top-4 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+                  <XIcon />
+                </button>
+                <h2 className="text-2xl font-bold mb-4">How to Play</h2>
+                <p className="mb-4">Guess the Daily <strong>FACTOLE</strong> in 6 tries.</p>
+                <ul className="list-disc pl-5 mb-4 space-y-2 text-sm sm:text-base">
+                  <li>Code is exactly <strong>6 digits</strong>.</li>
+                  <li>First <strong>4 digits</strong> are a number (0001 - 9999). Leading zeros are allowed!</li>
+                  <li>Last <strong>2 digits</strong> are exactly how many <strong>divisors</strong> that number has.</li>
+                  <li>Every guess must follow this rule!</li>
+                </ul>
+                
+                <div className="bg-slate-100 dark:bg-slate-700 p-3 rounded-lg mb-4 text-sm">
+                  <p className="font-bold mb-1">Example Sequence: 0010 04</p>
+                  <p className="opacity-90 text-xs">Because the number 10 has exactly 4 divisors (1, 2, 5, 10).</p>
+                </div>
+
+                <button 
+                  onClick={() => setShowInfo(false)}
+                  className="mt-6 w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition-colors"
+                >
+                  Let's Play
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
       return messages[tries - 1] || "You got it!";
     };
 

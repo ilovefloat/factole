@@ -241,6 +241,9 @@
           shareText += rowStr + '\n';
         });
 
+        const siteUrl = "https://ilovefloat.github.io/factole/";
+        shareText += `\n${siteUrl}`;
+
         if (navigator.share && /mobile|android|iphone|ipad/i.test(navigator.userAgent)) {
           navigator.share({
             title: 'FACTOLE',
